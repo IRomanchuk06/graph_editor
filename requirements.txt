@@ -1,4 +1,3 @@
-networkx
-matplotlib
-pyqt5
-pygraphviz
+networkx==3.1
+matplotlib==3.7.2
+scipy
