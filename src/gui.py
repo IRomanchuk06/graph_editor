@@ -40,21 +40,35 @@ class GraphEditorGUI:
 
         # State to track dragging node
         self.dragging_node = None
-        self.initial_coords = None
+        self.initial_coordinates = None
 
     def run(self):
         self.root.mainloop()
 
     def load_graph(self):
-        file_path = filedialog.askopenfilename()
+        """Load a graph from a file."""
+        file_path = filedialog.askopenfilename(defaultextension=".bin",
+                                               filetypes=[("Graph Files", "*.bin"), ("Text Files", "*.txt")])
         if file_path:
-            self.graph.load(file_path)
-            self.draw_graph()
+            try:
+                # Load the graph using the load method from the Graph class
+                self.graph = Graph.load(file_path)  # Use the static load method and update self.graph
+                self.draw_graph()  # Redraw the graph after loading
+                print(f"Graph loaded from {file_path}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error loading graph: {str(e)}")
 
     def save_graph(self):
-        file_path = filedialog.asksaveasfilename(defaultextension=".txt")
+        """Save the current graph to a file."""
+        file_path = filedialog.asksaveasfilename(defaultextension=".bin",
+                                                 filetypes=[("Graph Files", "*.bin"), ("Text Files", "*.txt")])
         if file_path:
-            self.graph.save(file_path)
+            try:
+                # Save the graph using the save method from the Graph class
+                self.graph.save(file_path)  # Save the graph as a .bin file
+                print(f"Graph successfully saved to {file_path}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error saving graph: {str(e)}")
 
     def draw_graph(self):
         self.canvas.delete("all")
@@ -71,7 +85,7 @@ class GraphEditorGUI:
         for node, (x, y) in self.graph.nodes.items():
             if abs(event.x - x) <= 15 and abs(event.y - y) <= 15:
                 self.dragging_node = node
-                self.initial_coords = (x, y)
+                self.initial_coordinates = (x, y)
                 break
 
     def on_mouse_drag(self, event):
@@ -82,11 +96,11 @@ class GraphEditorGUI:
             self.graph.nodes[self.dragging_node] = (new_x, new_y)
             self.draw_graph()
 
-    def on_mouse_release(self, event):
+    def on_mouse_release(self, _):
         """Finalize the new position of the node when mouse button is released"""
         if self.dragging_node:
             self.dragging_node = None
-            self.initial_coords = None
+            self.initial_coordinates = None
 
     def show_adjacency_matrix(self):
         if not self.graph.nodes:
@@ -146,5 +160,7 @@ class GraphEditorGUI:
             except ValueError as e:
                 messagebox.showerror("Error", str(e))
 
-    def _get_input(self, prompt):
+    @staticmethod
+    def _get_input(prompt: str) -> str | None:
+        """Gets user input from a dialog."""
         return simpledialog.askstring("Input", prompt)

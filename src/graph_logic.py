@@ -1,5 +1,5 @@
 import networkx as nx
-
+import pickle
 
 class Graph:
     def __init__(self, canvas_width=800, canvas_height=600):
@@ -66,3 +66,30 @@ class Graph:
         adj_matrix = nx.adjacency_matrix(self.graph)
         # Convert the sparse matrix to a dense one and return as a list of lists
         return adj_matrix.toarray().tolist()
+
+    def save(self, filename: str):
+        """Saves the graph object to a file using pickle"""
+        if not filename:
+            print("Error: Invalid filename provided.")
+            return
+
+        try:
+            with open(filename, "wb") as file:
+                pickle.dump(self, file)  # Serialize the entire graph object
+                print(f"Graph successfully saved to {filename}")
+        except PermissionError:
+            print(f"Error: Permission denied when saving to {filename}")
+        except Exception as e:
+            print(f"Error saving graph: {e}")
+
+    @staticmethod
+    def load(filename: str):
+        """Loads the graph from a pickle file"""
+        try:
+            with open(filename, "rb") as file:
+                graph_data = pickle.load(file)  # Deserialize the graph
+                print(f"Graph loaded from {filename}")
+                return graph_data  # Return the deserialized graph object
+        except Exception as e:
+            print(f"Error loading graph: {e}")
+            raise
