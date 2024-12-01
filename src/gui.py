@@ -42,6 +42,8 @@ class GraphEditorGUI:
         tk.Button(toolbar, text="Compute Graph Center", command=self.compute_center).pack(side=tk.LEFT)
         tk.Button(toolbar, text="Tensor Product", command=self.compute_tensor_product).pack(side=tk.LEFT)
         tk.Button(toolbar, text="Cartesian Product", command=self.compute_cartesian_product).pack(side=tk.LEFT)
+        tk.Button(toolbar, text="Show Graph Info", command=self.show_graph_info).pack(side=tk.LEFT)
+        tk.Button(toolbar, text="Check Connectivity", command=self.check_connectivity).pack(side=tk.LEFT)
 
         self.canvas.bind("<ButtonPress-1>", self.on_mouse_press)
         self.canvas.bind("<B1-Motion>", self.on_mouse_drag)
@@ -278,6 +280,73 @@ class GraphEditorGUI:
             except ValueError as e:
                 messagebox.showerror("Error", str(e))
 
+
+    def show_graph_info(self, graph=None):
+        """Displays full information about the graph: nodes, edges, and their attributes in a scrollable text window.
+        
+        If no graph is provided, it uses self.graph.
+        """
+
+        if graph:
+            nodes = graph.nodes()
+            edges = graph.edges()
+        else: 
+            nodes = self.graph.get_nodes()
+            edges = self.graph.get_edges()
+
+        # Use self.graph if no graph is provided
+        graph = graph or self.graph
+
+        if graph is None:
+            messagebox.showerror("Error", "No graph is available to display.")
+            return
+
+        # Collecting node information
+        node_info = "Nodes:\n"
+        for node, attributes in nodes.items():
+            pos = attributes.get('pos', [None, None])  # Get position, default to [None, None]
+            color = attributes.get('color', 'undefined')  # Get color, default to 'undefined'
+            shape = attributes.get('shape', 'undefined')  # Get shape, default to 'undefined'
+            node_info += f"Node: {node}\n  Position: {pos}\n  Color: {color}\n  Shape: {shape}\n\n"
+        
+        # Collecting edge information
+        edge_info = "Edges:\n"
+        for node1, node2 in edges:
+            edge_data = graph.get_edge_data(node1, node2)  # Get edge data between two nodes
+            edge_color = edge_data.get('color', 'black')  # Get edge color, default to 'black'
+            directed = edge_data.get('directed', False)  # Get edge direction, default to False
+            edge_info += f"Edge: {node1} -> {node2}\n  Color: {edge_color}\n  Directed: {directed}\n\n"
+        
+        # Create a new top-level window for displaying the information
+        info_window = tk.Toplevel(self.root)
+        info_window.title("Graph Information")
+
+        # Create a frame for the text widget and scrollbar
+        frame = tk.Frame(info_window)
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        # Create a Text widget for displaying the information
+        text_widget = tk.Text(frame, wrap=tk.WORD, width=80, height=20)
+        text_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Insert the gathered information into the text widget
+        text_widget.insert(tk.END, node_info + edge_info)
+
+        # Create a vertical scrollbar
+        scrollbar = tk.Scrollbar(frame, command=text_widget.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Link the scrollbar to the text widget
+        text_widget.config(yscrollcommand=scrollbar.set)
+
+        # Disable editing the text (make it read-only)
+        text_widget.config(state=tk.DISABLED)
+
+
+    def check_connectivity(self):
+        result = self.graph.check_connectivity() 
+        messagebox.showinfo("Connectivity Check", result) 
+
     def make_graph_connected(self):
         """Convert the graph to a connected graph"""
         if not self.graph.get_nodes():
@@ -307,32 +376,29 @@ class GraphEditorGUI:
         messagebox.showinfo("Graph Center", f"Center: {center}")
 
     def compute_tensor_product(self):
-        """Compute the tensor product of two graphs"""
-        if not self.graph.get_nodes():
+        """Compute the tensor product of two graphs and display information about the result"""
+        if not self.graph.get_nodes:
             messagebox.showerror("Error", "Graph is empty. Cannot compute tensor product.")
             return
         second_graph_file = filedialog.askopenfilename(defaultextension=".bin",
-                                                      filetypes=[("Graph Files", "*.bin")])
+                                                    filetypes=[("Graph Files", "*.bin")])
         if second_graph_file:
             second_graph = Graph.load(second_graph_file)
             result_graph = self.graph.tensor_product(second_graph)
-            self.graph = result_graph
-            self.draw_graph()
-            messagebox.showinfo("Tensor Product", "Tensor product computed successfully.")
+            self.show_graph_info(result_graph)
 
     def compute_cartesian_product(self):
-        """Compute the cartesian product of two graphs"""
-        if not self.graph.get_nodes():
+        """Compute the cartesian product of two graphs and display information about the result"""
+        if not self.graph.get_nodes:
             messagebox.showerror("Error", "Graph is empty. Cannot compute cartesian product.")
             return
         second_graph_file = filedialog.askopenfilename(defaultextension=".bin",
-                                                      filetypes=[("Graph Files", "*.bin")])
+                                                    filetypes=[("Graph Files", "*.bin")])
         if second_graph_file:
             second_graph = Graph.load(second_graph_file)
             result_graph = self.graph.cartesian_product(second_graph)
-            self.graph = result_graph
-            self.draw_graph()
-            messagebox.showinfo("Cartesian Product", "Cartesian product computed successfully.")
+            self.show_graph_info(result_graph)
+
 
     def color_node(self):
         """Select a node and apply color to it."""

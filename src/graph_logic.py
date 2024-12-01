@@ -64,16 +64,24 @@ class Graph:
         return nx.is_connected(self.graph)
 
     def radius_and_diameter(self):
-        """Returns the radius and diameter of a connected graph"""
-        if nx.is_connected(self.graph):
+        """Returns the radius and diameter of a weakly connected graph"""
+        if not nx.is_weakly_connected(self.graph):
+            # The graph is not weakly connected, return None and do not calculate radius and diameter
+            return None, None
+
+        try:
+            # Try to calculate the radius and diameter of the graph
             radius = nx.radius(self.graph)
             diameter = nx.diameter(self.graph)
             return radius, diameter
-        return None, None
+        except nx.NetworkXError as e:
+            # Handle any errors that occur during radius and diameter calculation
+            print(f"Error calculating radius and diameter: {e}")
+            return None, None
 
     def center(self):
         """Returns the center of the graph"""
-        if nx.is_connected(self.graph):
+        if nx.is_strongly_connected(self.graph):
             return nx.center(self.graph)
         return None
 
@@ -174,13 +182,14 @@ class Graph:
 
     def make_connected(self):
         """Makes the graph connected by adding edges"""
-        if not nx.is_connected(self.graph):
-            connected_components = list(nx.connected_components(self.graph))
+        if not nx.is_weakly_connected(self.graph):
+            connected_components = list(nx.weakly_connected_components(self.graph))
             for i in range(len(connected_components) - 1):
                 node1 = list(connected_components[i])[0]
                 node2 = list(connected_components[i + 1])[0]
                 self.add_edge_to_graph(node1, node2)
-            print("Graph has been made connected.")
+            print("Graph has been made weakly connected.")
+
 
     def _find_hamiltonian_cycle_util(self, path, pos):
         # If all vertices are included in the path
@@ -212,25 +221,45 @@ class Graph:
         return []  # No Hamiltonian cycle found
 
     def tensor_product(self, second_graph):
-        """Compute the tensor product of two graphs."""
-        result_graph = nx.Graph()  # Create an empty graph for the result
+            """Compute the tensor product of two graphs and ensure the result is a DiGraph."""
+            result_graph = nx.DiGraph()  # Ensure the result is a DiGraph
+
+            # Get nodes of both graphs
+            nodes_1 = list(self.graph.nodes())
+            nodes_2 = list(second_graph.graph.nodes())
+
+            # Iterate over all pairs of nodes from both graphs
+            for (v1, v2) in itertools.product(nodes_1, nodes_2):
+                # Add the combined node to the result graph
+                result_graph.add_node((v1, v2))
+
+            # Get edges of both graphs
+            edges_1 = list(self.graph.edges())
+            edges_2 = list(second_graph.graph.edges())
+
+            # Iterate over all pairs of edges to determine tensor product edges
+            for (v1, u1) in edges_1:
+                for (v2, u2) in edges_2:
+                    # Add an edge in the result graph if conditions are met
+                    result_graph.add_edge((v1, v2), (u1, u2))
+
+            return result_graph
+
+
+    def cartesian_product(self, other_graph):
+        """Returns the Cartesian product of the current graph with another graph, preserving DiGraph properties."""
+        result_graph = nx.DiGraph()  # Create a DiGraph for the Cartesian product
 
         # Iterate over all pairs of nodes from both graphs
-        for (v1, v2) in itertools.product(self.graph.nodes, second_graph.nodes):
-            # Add the combined node to the result graph
+        for (v1, v2) in itertools.product(self.graph.nodes(), other_graph.graph.nodes()):
             result_graph.add_node((v1, v2))
 
-        # Iterate over all pairs of edges to determine tensor product edges
-        for (v1, u1) in self.graph.edges:
-            for (v2, u2) in second_graph.edges:
-                # Add an edge in the result graph if conditions are met
+        # Add edges to the result graph for Cartesian product
+        for (v1, u1) in self.graph.edges():
+            for (v2, u2) in other_graph.graph.edges():
                 result_graph.add_edge((v1, v2), (u1, u2))
 
         return result_graph
-
-    def cartesian_product(self, other_graph):
-        """Returns the Cartesian product of the current graph with another graph"""
-        return nx.cartesian_product(self.graph, other_graph.graph)
 
     def draw(self):
         """Draws the graph using matplotlib and applies the node colors"""
@@ -248,6 +277,16 @@ class Graph:
             self.node_colors[node] = color
         else:
             raise ValueError("Node does not exist")
+
+    def check_connectivity(self):
+        """Check the connectivity of the graph and return the result"""
+        if nx.is_weakly_connected(self.graph):
+            if nx.is_strongly_connected(self.graph):
+                return "The graph is strongly connected."
+            else:
+                return "The graph is weakly connected."
+        else:
+            return "The graph is not connected."
 
     def get_node_color(self, node):
         """Return the color of a specific node."""
