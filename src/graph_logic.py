@@ -2,36 +2,62 @@ import networkx as nx
 import pickle
 import matplotlib.pyplot as plt
 import tkinter as tk
-from tkinter import messagebox, colorchooser
-import random
 import itertools
 
 class Graph:
     def __init__(self, canvas_width=800, canvas_height=600):
         """Initializes the graph with the canvas dimensions for node placement"""
-        self.nodes = {}
-        self.edges = []
-        self.graph = nx.Graph()
+        self.graph = nx.DiGraph()
         self.canvas_width = canvas_width
         self.canvas_height = canvas_height
         self.node_colors = {}
         plt.ion()  # Enable interactive mode
 
-    def add_node(self, name):
-        """Adds a node at the center of the canvas with unique coordinates"""
-        if name in self.graph:
-            raise ValueError(f"Node {name} already exists.")
-        x = self.canvas_width // 2  # X center coordinate
-        y = self.canvas_height // 2  # Y center coordinate
-        self.nodes[name] = (x, y)  # Save node position
-        self.graph.add_node(name)  # Add node to the graph
+    def get_nodes(self):
+        return self.graph.nodes
 
-    def add_edge(self, node1, node2):
-        """Adds an edge between two nodes"""
+    def get_edges(self):
+        return self.graph.edges
+
+    def add_node(self, name, shape):
+        """Add a node with attributes at the center of the canvas"""
+        # Calculate the center of the canvas
+        x = self.canvas_width / 2
+        y = self.canvas_height / 2
+
+        # Add the node with center position and specified shape
+        self.graph.add_node(name, pos=(x, y), shape=shape)
+
+    def add_edge_to_graph(self, node1, node2, directed=False):
+        """Adds an edge to the graph (directed or undirected)."""
         if node1 not in self.graph or node2 not in self.graph:
-            raise ValueError("One or both nodes do not exist in the graph.")
-        self.edges.append((node1, node2))
-        self.graph.add_edge(node1, node2)
+            raise ValueError(f"Nodes {node1} and/or {node2} do not exist in the graph.")
+
+        if directed:
+            # Add directed edge from node1 to node2 (only one direction)
+            if not self.graph.has_edge(node1, node2):  # Check if edge already exists in the same direction
+                self.graph.add_edge(node1, node2, directed=True)
+        else:
+            # Add undirected edge by setting directed attribute to False
+            if not self.graph.has_edge(node1, node2):
+                self.graph.add_edge(node1, node2, directed=False)
+            if not self.graph.has_edge(node2, node1):
+                self.graph.add_edge(node2, node1, directed=False)
+
+
+    def has_edge(self, node1, node2, directed=False):
+        """Checks if there is an edge between node1 and node2 (directed or undirected)."""
+        # Check if nodes exist in the graph
+        if node1 not in self.graph or node2 not in self.graph:
+            return False
+
+        if directed:
+            # For directed graphs, check only the edge from node1 to node2
+            return self.graph[node1].get(node2) is not None
+        else:
+            # For undirected graphs, check either direction
+            return self.graph[node1].get(node2) is not None or self.graph[node2].get(node1) is not None
+
 
     def is_connected(self):
         """Checks if the graph is connected"""
@@ -55,28 +81,65 @@ class Graph:
         """Removes a node and all its associated edges from the graph"""
         if node_name in self.graph:
             self.graph.remove_node(node_name)
-            del self.nodes[node_name]
-            self.edges = [edge for edge in self.edges if node_name not in edge]
         else:
             raise ValueError(f"Node {node_name} does not exist.")
 
     def remove_edge(self, node1, node2):
         """Removes an edge between two nodes"""
-        if (node1, node2) in self.edges:
-            self.edges.remove((node1, node2))
+        if self.graph.has_edge(node1, node2):
             self.graph.remove_edge(node1, node2)
-        elif (node2, node1) in self.edges:
-            self.edges.remove((node2, node1))
-            self.graph.remove_edge(node2, node1)
         else:
             raise ValueError(f"Edge between {node1} and {node2} does not exist.")
 
     def get_edge_data(self, node1, node2):
-        """Returns edge data between two nodes, if the edge exists."""
-        if self.graph.has_edge(node1, node2):
-            return self.graph[node1][node2]  # Returns a dictionary with edge data (if any)
+        """Returns edge data between two nodes, checking for edges in both directions and determining 'directed' attribute."""
+        edge_data = self.graph.get_edge_data(node1, node2)
+
+        if edge_data is None:
+            # Check if the reverse edge exists for undirected edges
+            reverse_edge_data = self.graph.get_edge_data(node2, node1)
+            if reverse_edge_data is not None:
+                # If reverse edge exists, mark the edge as undirected
+                return {'directed': False}
+            else:
+                raise ValueError(f"No edge exists between {node1} and {node2}")
+
+        # Ensure edge_data is a dictionary before calling setdefault
+        if isinstance(edge_data, dict):
+            edge_data.setdefault('directed', False)  # Default directed to False if not provided
         else:
-            raise ValueError(f"No edge exists between {node1} and {node2}")
+            edge_data = {'directed': False}  # Default to directed = False if edge data isn't a dictionary
+
+        # If both edges exist, mark the edge as undirected
+        reverse_edge_data = self.graph.get_edge_data(node2, node1)
+        if reverse_edge_data is not None:
+            edge_data['directed'] = False  # Set to undirected if reverse edge exists
+
+        return edge_data
+
+    def rename_node(self, old_name, new_name):
+        """Renames a node from old_name to new_name."""
+        nodes = self.get_nodes()  # Get nodes once
+        if old_name not in nodes:
+            return False, f"Node '{old_name}' does not exist."
+        if new_name in nodes:
+            return False, f"Node '{new_name}' already exists."
+
+        # Rename the node in the dictionary (using NetworkX methods)
+        node_data = self.graph.nodes[old_name]
+        self.graph.add_node(new_name, **node_data)
+        self.graph.remove_node(old_name)
+
+        # Update the edges: rename any edge that includes the old node name
+        for n1, n2 in list(self.graph.edges):
+            if n1 == old_name:
+                self.graph.remove_edge(n1, n2)
+                self.graph.add_edge(new_name, n2)
+            elif n2 == old_name:
+                self.graph.remove_edge(n1, n2)
+                self.graph.add_edge(n1, new_name)
+
+        return True, f"Node '{old_name}' renamed to '{new_name}'."
 
     def adjacency_matrix(self):
         """Returns the adjacency matrix of the graph"""
@@ -116,7 +179,7 @@ class Graph:
             for i in range(len(connected_components) - 1):
                 node1 = list(connected_components[i])[0]
                 node2 = list(connected_components[i + 1])[0]
-                self.add_edge(node1, node2)
+                self.add_edge_to_graph(node1, node2)
             print("Graph has been made connected.")
 
     def _find_hamiltonian_cycle_util(self, path, pos):
@@ -172,7 +235,7 @@ class Graph:
     def draw(self):
         """Draws the graph using matplotlib and applies the node colors"""
         plt.clf()  # Clear the current figure
-        pos = {node: coords for node, coords in self.nodes.items()}  # Node positions
+        pos = {node: coordinates for node, coordinates in self.get_nodes().items()}  # Node positions
         node_color_list = [self.node_colors.get(node, 'lightblue') for node in self.graph.nodes]
         nx.draw(self.graph, pos, with_labels=True, node_color=node_color_list,
                 node_size=500, font_size=10, font_color='black', font_weight='bold')
@@ -181,7 +244,7 @@ class Graph:
 
     def set_node_color(self, node, color):
         """Set color for a specific node."""
-        if node in self.nodes:
+        if node in self.get_nodes():
             self.node_colors[node] = color
         else:
             raise ValueError("Node does not exist")
@@ -196,7 +259,7 @@ class Graph:
             node_name = node_name_entry.get()
             color = color_entry.get()
             try:
-                self.color_node(node_name, color)
+                self.set_node_color(node_name, color)
             except ValueError as e:
                 error_label.config(text=str(e))
 
@@ -223,17 +286,3 @@ class Graph:
         error_label.pack()
 
         gui_window.mainloop()
-
-    def color_node_from_gui(self):
-        """Select a node and apply color to it"""
-        if not self.graph.nodes:
-            messagebox.showerror("Error", "Graph is empty. Cannot color a node.")
-            return
-        node_name = self._get_input("Enter the node name to color:")
-        if node_name in self.graph.nodes:
-            color = colorchooser.askcolor()[1]
-            if color:
-                self.set_node_color(node_name, color)
-                self.draw()
-        else:
-            messagebox.showerror("Error", "Node not found.")
